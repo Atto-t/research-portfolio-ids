@@ -1,0 +1,52 @@
+graph LR
+  %% 外部ネットワーク
+  Attacker[Attacker / Botnet]
+  Admin[Remote Admin]
+
+  %% ルーター層（Double NAT）
+  subgraph Network[MAP-E / Double NAT Environment]
+    NTT[NTT Router PR-500KI\nMAP-E DNAT]
+    Buffalo[Buffalo Router\nIPv6 Pass-through]
+  end
+
+  %% 物理サーバー層
+  subgraph Server[Ubuntu Server 26.04 - 192.168.11.25]
+    UFW[UFW & CrowdSec\nHost Firewall]
+    WG[WireGuard VPN\nUDP 36752]
+    HDD[(1TB HDD\n/mnt/data)]
+    GPU[NVIDIA GTX 1050 Ti\nPassthrough]
+
+    %% コンテナ層
+    subgraph Docker[Docker Containers]
+      Nginx[Nginx Dummy\nTCP 8080, Read-Only]
+      Suricata[Suricata IDS\nHost Network, cap_add]
+
+      subgraph PLG[PLG Stack]
+        Promtail[Promtail\nLog Shipper]
+        Loki[Loki\ngRPC 4MB Expanded]
+        Grafana[Grafana\nSOC Dashboard]
+      end
+
+      Jupyter[JupyterLab\nAI Analysis]
+    end
+  end
+
+  %% 通信経路とデータの流れ
+  Attacker -- "TCP 8080 (Web Scan)" --> NTT
+  Admin -- "UDP 36752 (Encrypted)" --> NTT
+  NTT --> Buffalo
+  Buffalo --> UFW
+
+  UFW -- "Port 8080" --> Nginx
+  UFW -- "Port 36752" --> WG
+
+  Nginx -. "Packet Capture" .-> Suricata
+  Suricata -- "eve.json" --> HDD
+  
+  HDD -. "Log Mount" .-> Promtail
+  Promtail --> Loki
+  Loki --> Grafana
+
+  HDD -. "JSON Mount" .-> Jupyter
+  GPU -- "CUDA Toolkit" --> Jupyter
+  WG -. "OOB Management" .-> Docker
