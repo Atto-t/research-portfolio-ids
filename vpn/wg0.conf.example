@@ -1,0 +1,18 @@
+[Interface]
+# セキュリティのため秘密鍵は伏せています
+PrivateKey = <YOUR_WIREGUARD_PRIVATE_KEY>
+Address = 10.0.0.1/24
+
+# MAP-E (v6 Plus) 環境下でNTTルーターから特定した利用可能ポート
+ListenPort = <MAP-E_ASSIGNED_VPN_PORT> 
+
+# v6プラス特有のカプセル化オーバーヘッドによるパケットロスを回避するMTUチューニング
+MTU = 1360 
+
+# Double DNAT環境下（192.168.11.25）でのフルトンネル・ルーティング
+PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o enp2s0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o enp2s0 -j MASQUERADE
+
+[Peer]
+PublicKey = <CLIENT_PUBLIC_KEY>
+AllowedIPs = 10.0.0.2/32
