@@ -1,16 +1,15 @@
-version: '3.8'
-
 services:
-  jupyterlab:
+  jupyter-ai:
     image: tensorflow/tensorflow:latest-gpu-jupyter
-    container_name: jupyter-ai-analytics
+    container_name: jupyter-ai
     ports:
       - "8888:8888"
     volumes:
-      # /mnt/data に蓄積されたSuricataのログを読み取り専用でアタッチ
-      - /mnt/data/suricata/log:/tf/logs:ro
-      - /mnt/data/notebooks:/tf/notebooks
-    # MOK登録済みのNVIDIAドライバ(GTX 1050 Ti)をコンテナへパススルー
+      # Pythonノートブックおよび抽出データセットの保存先
+      - /mnt/data/ai_analysis/notebooks:/tf/notebooks
+      # 各種ハニーポット・IDSの生ログを読み取り専用(ro)でマウント
+      - /mnt/data/web-honeypot/suricata/logs:/mnt/suricata_logs:ro
+      - /mnt/data/ids_honeypot/cowrie/log:/mnt/cowrie_logs:ro
     deploy:
       resources:
         reservations:
@@ -18,8 +17,4 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    # TensorFlowのCUDAライブラリ欠落バグに対する起動時パッチ
-    command: >
-      bash -c "pip install 'tensorflow[and-cuda]' && 
-      jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root"
     restart: unless-stopped

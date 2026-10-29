@@ -1,28 +1,43 @@
-version: '3.8'
-
 services:
-  # 1. 踏み台化を完全に防ぐダミーWebサーバー
-  dummy-nginx:
+  # ① ダミーWebサーバー（標的）
+  nginx-honeypot:
     image: nginx:alpine
-    container_name: dummy-nginx
+    container_name: web-honeypot-nginx
     ports:
-      # MAP-E環境で開放可能なポート（TCP 8080等）へマッピング
-      - "<MAP-E_ASSIGNED_HTTP_PORT>:80"
-    # マルウェア等の書き込みをOSレベルで物理ブロック
+      - "8080:80"
+    # ファイルシステムの完全保護（Read-Only化）
     read_only: true
+    tmpfs:
+      - /var/cache/nginx:rw,noexec,nosuid
+      - /var/run:rw,noexec,nosuid
+      - /tmp:rw,noexec,nosuid
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    # 権限の完全剥奪と最小限のホワイトリスト許可
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
     restart: always
 
-  # 2. 攻撃パケットをJSONで記録するIDS
-  suricata:
+  # ② IDS（侵入検知システム - Suricata）
+  suricata-ids:
     image: jasonish/suricata:latest
-    container_name: suricata
-    network_mode: "host"
+    container_name: web-honeypot-suricata
+    # Nginxコンテナのネットワーク名前空間を直接監視するサイドカーパターン
+    network_mode: "service:nginx-honeypot"
     cap_add:
       - NET_ADMIN
       - NET_RAW
       - SYS_NICE
     volumes:
-      # 1TB HDD (/mnt/data) へのログ出力マウント
-      - /mnt/data/suricata/log:/var/log/suricata
-    command: -i enp2s0
+      - ./suricata/logs:/var/log/suricata
+      - ./suricata/rules:/var/lib/suricata/rules
+    # Nginxの仮想インターフェース(eth0)をキャプチャ
+    command: -i eth0
     restart: always
